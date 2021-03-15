@@ -16,9 +16,10 @@ from re3_utils.util.im_util import get_image_size
 DEBUG = False
 
 
-def main(label_type):
+def main(dataset_path, label_type):
     wildcard = "/*/*/" if label_type == "train" else "/*/"
-    dataset_path = "data/ILSVRC2015/"
+    #dataset_path = "data/ILSVRC2015/"
+    #dataset_path = sys.argv[1]
     annotationPath = dataset_path + "Annotations/"
     imagePath = dataset_path + "Data/"
 
@@ -32,7 +33,7 @@ def main(label_type):
     bboxes = []
     imNum = 0
     totalImages = len(glob.glob(annotationPath + "VID/" + label_type + wildcard + "*.xml"))
-    print "totalImages", totalImages
+    print("totalImages", totalImages)
     classes = {
         "n01674464": 1,
         "n01662784": 2,
@@ -72,7 +73,7 @@ def main(label_type):
         trackColor = dict()
         for ii, imageName in enumerate(images):
             if imNum % 100 == 0:
-                print "imNum %d of %d = %.2f%%" % (imNum, totalImages, imNum * 100.0 / totalImages)
+                print("imNum %d of %d = %.2f%%" % (imNum, totalImages, imNum * 100.0 / totalImages))
             if not DEBUG:
                 # Leave off initial bit of path so we can just add parent dir to path later.
                 imageNameFile.write(imageName + "\n")
@@ -81,9 +82,9 @@ def main(label_type):
             imgSize = get_image_size(images[ii])
             area = imgSize[0] * imgSize[1]
             if DEBUG:
-                print "\n%s" % images[ii]
+                print("\n%s" % images[ii])
                 image = cv2.imread(images[ii])
-                print "video", vv, "image", ii
+                print("video", vv, "image", ii)
             for obj in labelTree.findall("object"):
                 cls = obj.find("name").text
                 assert cls in classes
@@ -105,8 +106,8 @@ def main(label_type):
                 ]
 
                 if DEBUG:
-                    print "name", obj.find("name").text, "\n"
-                    print bbox
+                    print("name", obj.find("name").text, "\n")
+                    print(bbox)
                     if trackId not in trackColor:
                         trackColor[trackId] = [random.random() * 255 for _ in xrange(3)]
                     drawing.drawRect(image, bbox[:4], 3, trackColor[trackId])
@@ -127,5 +128,8 @@ def main(label_type):
 
 
 if __name__ == "__main__":
-    main("train")
-    main("val")
+    dataset_path = sys.argv[1]
+    main(dataset_path, "train")
+    main(dataset_path, "val")
+
+

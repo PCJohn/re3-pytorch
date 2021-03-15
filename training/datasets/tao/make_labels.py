@@ -1,19 +1,26 @@
 import os
+import sys
+import glob
 import json
 import numpy as np
 
 
 if __name__ == '__main__':
-    TAO_train_imdir = '/home/prithvi/data/tracking/1-TAO_TRAIN'
-    TAO_train_labels = '/home/prithvi/data/tracking/TAOLabels/TAO_train/gt/gt.json'
-    train_gt = json.load(open(TAO_train_labels,'r'))    
+    TAO_train_imdir = sys.argv[1]
+    TAO_train_labels = sys.argv[2]
+    with open(TAO_train_labels,'r') as f:
+        train_gt = json.load(f)    
     
     bboxes = []
     for vid in train_gt['videos']:
         vid_id = vid['id']
         vid_anns = [ann for ann in train_gt['annotations'] if (ann['video_id'] == vid['id'])]
         for ann in vid_anns:
-            bboxes.append(ann['bbox']+
+            x,y,w,h = ann['bbox']
+            xmin,ymin = x,y
+            xmax,ymax = x+w,y+h
+            bbox = [xmin,ymin,xmax,ymax]
+            bboxes.append(bbox+
                             [vid_id,
                              ann['track_id'],
                              ann['image_id'],
@@ -26,9 +33,8 @@ if __name__ == '__main__':
     os.system('mkdir train')
     np.save('train/labels.npy',bboxes)
     
-    #os.system('mkdir val')
-    #np.save('val/labels.npy',bboxes)
-
-
-
+    image_paths = glob.glob(TAO_train_imdir+'/*/*/*/*')
+    with open('train/image_paths.txt','w') as f:
+        f.write('\n'.join(image_paths))
+    
 
