@@ -1,5 +1,6 @@
 import os
-
+import threading
+from PIL import Image
 import numpy as np
 import scipy.misc
 import tensorflow as tf
@@ -37,12 +38,12 @@ def kernel_to_image(data, padsize=1):
     return (data * 255).astype(np.uint8)
 
 
-class SummaryWriter(tf.summary.FileWriter):
+class SummaryWriter():
     def __init__(self, path):
         if not os.path.exists(path):
             os.makedirs(path)
-        super(SummaryWriter, self).__init__(path)
-        import threading
+        self.path = path
+        self.tf_writer = tf.summary.create_file_writer(self.path)
 
         self.lock = threading.Lock()
         self.count = 0
@@ -55,8 +56,7 @@ class SummaryWriter(tf.summary.FileWriter):
             self.count = global_step
         elif increment_step_counter:
             self.count += 1
-        super(SummaryWriter, self).add_summary(summary, self.count)
-        self.flush()
+        self.tf_writer.flush()
         self.lock.release()
 
     def increment(self):
@@ -81,9 +81,9 @@ class Logger(object):
             self.writer.count = new_count
 
     def multi_scalar_log(self, tags, values, step):
-        for tag, value in zip(tags, values):
-            summary = tf.Summary(value=[tf.Summary.Value(tag=tag, simple_value=value)])
-            self.writer.add_summary(summary, step, False)
+        with self.writer.tf_writer.as_default():
+            for tag, value in zip(tags, values):
+                summary = tf.summary.scalar(name=tag, data=value, step=step)
         self.writer.increment()
 
     def dict_log(self, items_to_log, step):
@@ -92,8 +92,8 @@ class Logger(object):
 
     def scalar_summary(self, tag, value, step, increment_counter):
         """Log a scalar variable."""
-        summary = tf.Summary(value=[tf.Summary.Value(tag=tag, simple_value=value)])
-        self.writer.add_summary(summary, step, increment_counter)
+        with self.writer.tf_writer.as_default():
+            summary = tf.summary.scalar(tag, value, step=step)
 
     def network_conv_summary(self, network, step):
         for ii, (name, val) in enumerate(network.state_dict().items()):
@@ -138,19 +138,10 @@ class Logger(object):
         """Log a list of images."""
 
         img_summaries = []
-        for i, img in enumerate(images):
-            # Write the image to a string
-            s = StringIO()
-            scipy.misc.toimage(img).save(s, format="png")
-
-            # Create an Image object
-            img_sum = tf.Summary.Image(encoded_image_string=s.getvalue(), height=img.shape[0], width=img.shape[1])
-            # Create a Summary value
-            img_summaries.append(tf.Summary.Value(tag="%s/%d" % (tag, i), image=img_sum))
-
-        # Create and write Summary
-        summary = tf.Summary(value=img_summaries)
-        self.writer.add_summary(summary, step, increment_counter)
+        with self.writer.tf_writer.as_default():
+            for i, img in enumerate(images):
+                img = img[np.newaxis,:,:,:]
+                img_sum = tf.summary.image('img_'+str(i), img, step=step)
 
     def histo_summary(self, tag, values, step, bins=1000, increment_counter=True):
         """Log a histogram of the tensor of values."""
@@ -176,6 +167,7 @@ class Logger(object):
             hist.bucket.append(c)
 
         # Create and write Summary
-        summary = tf.Summary(value=[tf.Summary.Value(tag=tag, histo=hist)])
-        self.writer.add_summary(summary, step, increment_counter)
-        self.writer.flush()
+        with self.writer.tf_writer.as_default():
+            tf.summary.histogram(tag, hist, buckets=hist.bucket)
+
+
